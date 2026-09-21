@@ -123,7 +123,41 @@ ok("H Lyman-alpha 1->2", near(lam(1,1,2), 121.6, .5), lam(1,1,2).toFixed(1) + " 
 ok("H Balmer-alpha 2->3", near(lam(1,2,3), 656.3, 1.0), lam(1,2,3).toFixed(1) + " nm");
 ok("He+ 1->2 (Z=2)", near(lam(2,1,2), 30.4, .3), lam(2,1,2).toFixed(1) + " nm");
 
-console.log("\n== 11. config integrity ==");
+console.log("");
+console.log("== 11. orbital availability is set by the element ==");
+const shellMax = sub => Math.max(...sub.map(s => s.n));
+const lMaxAt = (sub,n) => { const ls=sub.filter(s=>s.n===n).map(s=>s.l); return ls.length?Math.max(...ls):-1; };
+let pmis=[];
+for (const el of EL) { const n=shellMax(configOf(el.Z)); if (n!==el.period) pmis.push(`${el.sym} n=${n} period=${el.period}`); }
+ok("highest occupied n == period (Pd excepted)", pmis.length===1 && pmis[0].startsWith("Pd"), pmis.join("; ")||"none");
+for (const [Z,wantN,wantL] of [[1,1,0],[6,2,1],[26,4,0],[46,4,2],[92,7,0]]) {
+  const sub=configOf(Z);
+  ok(`${EL[Z-1].sym}: nMax=${wantN}, lMax at nMax=${wantL}`,
+     shellMax(sub)===wantN && lMaxAt(sub,shellMax(sub))===wantL,
+     `got n=${shellMax(sub)} l=${lMaxAt(sub,shellMax(sub))}`);
+}
+ok("H cannot reach n=8 (only 1s occupied)", shellMax(configOf(1))===1, "nMax=1");
+ok("Fe n=4 offers only l=0 (4s), not 4f", lMaxAt(configOf(26),4)===0, "lMax=0");
+
+console.log("");
+console.log("== 12. the same orbital is a different size in different elements ==");
+const rOf=(Z,n,l)=>{const sub=configOf(Z);return (3*n*n-l*(l+1))/(2*zeff(Z,sub,n,l));};
+for (const [a,b,n,l] of [[26,30,3,2],[26,29,3,2],[11,19,3,0]]) {
+  const ra=rOf(a,n,l), rb=rOf(b,n,l);
+  ok(`${n}${LNAME[l]}: ${EL[a-1].sym} vs ${EL[b-1].sym} differ`, Math.abs(ra-rb)>1e-6,
+     `${ra.toFixed(2)} vs ${rb.toFixed(2)} a0`);
+}
+{
+  const hyd=(3*9-6)/2;
+  ok("Fe 3d is NOT hydrogen-sized (the old Zeff=1 bug)", Math.abs(rOf(26,3,2)-hyd)>1,
+     `Fe ${rOf(26,3,2).toFixed(2)} vs H ${hyd.toFixed(2)} a0`);
+}
+ok("N 2p Zeff = 3.90 (LibreTexts worked example)", Math.abs(zeff(7,configOf(7),2,1)-3.90)<.01,
+   zeff(7,configOf(7),2,1).toFixed(2));
+ok("Cu 3d Zeff = 7.85 (LibreTexts worked example)", Math.abs(zeff(29,configOf(29),3,2)-7.85)<.01,
+   zeff(29,configOf(29),3,2).toFixed(2));
+
+console.log("\n== 13. config integrity ==");
 let cerr = 0, order = 0;
 for (const el of EL) {
   const sub = configOf(el.Z);

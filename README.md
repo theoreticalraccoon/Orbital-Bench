@@ -65,7 +65,7 @@ Point budget is weighted by ⟨r⟩ as well as by how many electrons a subshell 
 that, uranium's two 7s electrons vanish underneath ninety core electrons crammed into a
 hundredth of the radius.
 
-## Two bugs worth writing down
+## Bugs worth writing down
 
 **Every element looked identical.** Spreading a subshell's electrons evenly across its m
 states makes it a perfect sphere. That's Unsöld's theorem, `Σ_m |Y_lm|² = (2l+1)/4π`, and when
@@ -90,6 +90,31 @@ difference. `True scale` in the Render panel stops the camera reframing, so walk
 period visibly shrinks the atom (Li 4.6 a₀ down to Ne 0.9) and walking down a group grows it
 (Na 6.1 up to Cs 24.5).
 
+**Single-orbital mode ignored the element entirely.** Two things were wrong. The n, l and m
+sliders ran free from 1 to 8 no matter which element you'd picked, so you could sit on hydrogen
+and dial up a 7f orbital that hydrogen has no electron in. And the orbital was built with
+`Zeff: 1` hard-coded, which means it was a *hydrogen* orbital wearing the element's name. Iron's
+3d came out at 10.5 a₀, hydrogen's size, instead of the 1.68 a₀ its own screened charge gives it.
+
+n isn't a free dial. [NIST](https://www.nist.gov/pml/atomic-spectroscopy-compendium-basic-ideas-notation-data-and-formulas/atomic-spectroscopy-10)
+puts it plainly: electrons sharing a principal quantum number belong to that shell, and those
+sharing n and l to a subshell. Which subshells hold electrons follows from the
+[Aufbau and Madelung order](https://en.wikipedia.org/wiki/Aufbau_principle). So the available n
+run from 1 up to whatever the ground-state configuration reaches. Hydrogen stops at 1. Iron gets
+to 4. Uranium to 7. That ceiling is the period number for every element except
+[palladium](https://en.wikipedia.org/wiki/Palladium), which is `[Kr]4d¹⁰` with an empty 5s and so
+keeps four shells while sitting in period 5.
+
+l is capped twice: by l ≤ n−1, and by what the shell actually fills. Iron's n = 4 shell holds
+only 4s, so l there is 0. You shouldn't be able to ask for iron's 4f.
+
+The sliders are now bounded by the element's configuration and carry its own Z_eff from
+[Slater's rules](https://chem.libretexts.org/Courses/Ursinus_College/CHEM322:_Inorganic_Chemistry/01:_Atomic_Structure/1.03:_Multi-Electron_Atoms/1.3.04:_Slater's_Rules).
+The same orbital is now a different size in different elements, which is the whole point: 3d is
+1.68 a₀ in iron, 1.34 in copper, 1.19 in zinc. `Include empty` lifts the restriction if you want
+to look at an orbital the atom could be promoted into, and the panel says so rather than
+pretending it's occupied.
+
 **5s and 7s orbitals were invisible at every setting.** I'd been normalising colour against
 the maximum of the density function. For an `ns` orbital that maximum is a spike at the
 nucleus where basically no sample ever lands, so every point I actually drew sat at 0.001 of
@@ -112,7 +137,7 @@ control does.
 
 ## Tests
 
-`node validate.js` pulls the maths out of `index.html` and runs 82 checks against it, so the
+`node validate.js` pulls the maths out of `index.html` and runs 96 checks against it, so the
 suite can't drift away from what actually ships.
 
 | check | result |
@@ -127,6 +152,9 @@ suite can't drift away from what actually ships.
 | Rydberg lines | Lyman-α 121.5 nm, Balmer-α 656.1 nm, He⁺ 30.4 nm |
 | all 118 configurations | sum to Z, nothing over-filled |
 | 22 term symbols vs NIST | all match |
+| highest occupied n vs period, all 118 | equal everywhere except palladium |
+| same orbital across elements | 3d is 1.68 a₀ in Fe, 1.34 in Cu, 1.19 in Zn |
+| Slater worked examples | N 2p 3.90, Cu 3d 7.85, matching LibreTexts |
 
 ## Where it's wrong
 

@@ -230,6 +230,14 @@ body.rail-closed #fstog{right:92px}
         <input type="range" id="ql" min="0" max="7" step="1" value="3">
         <div class="row"><label for="qm">Magnetic <b>m</b></label><span class="val" id="qm-v">+1</span></div>
         <input type="range" id="qm" min="-7" max="7" step="1" value="1">
+        <div class="seg" id="virt" style="margin-top:10px">
+          <button data-v="occ" class="on">Occupied only</button>
+          <button data-v="all">Include empty</button>
+        </div>
+        <div class="facts" style="margin-top:8px">
+          <div class="fact"><div class="k">Subshell</div><div class="v" id="o-name">&mdash;</div></div>
+          <div class="fact"><div class="k">Z<sub>eff</sub> here</div><div class="v" id="o-zeff">&mdash;</div></div>
+        </div>
         <div class="hint" id="statehint"></div>
       </div>
       <div id="shellsblock">
@@ -860,7 +868,7 @@ function makeNucleus(Z, A, outer) {
 
 /* ============================ cloud build ============================ */
 const state = {
-  Z: 1, mode: "atom", basis: "cx", fill: "hund", frame: "fit", n: 4, l: 3, m: 1,
+  Z: 1, mode: "atom", basis: "cx", fill: "hund", frame: "fit", virt: "occ", n: 4, l: 3, m: 1,
   pts: 120000, size: 1.5, gain: 0, contrast: 55, flow: 1, boil: 1200,
   nuc: true, grid: true, pal: "auto", iso: null, excited: null
 };
@@ -939,7 +947,13 @@ function buildCloud() {
   if (state.mode === "orb") {
     const n = state.n, l = Math.min(state.l, n - 1), m = Math.max(-l, Math.min(l, state.m));
     state.l = l; state.m = m;
-    list.push({ n, l, m, e: 1, Zeff: 1, sub: null });
+    /* The screened charge for THIS element, not hydrogen. Hard-coding Zeff = 1
+       here drew a hydrogen orbital no matter which element was selected, so
+       iron's 3d came out at hydrogen's size instead of its own. Slater's rules
+       apply to an electron in (n,l) whether or not the ground state fills it;
+       for an empty orbital the result is the charge an added electron feels. */
+    const Ze = zeff(el.Z, sub, n, l);
+    list.push({ n, l, m, e: 1, Zeff: Ze, sub: sub.find(x => x.n === n && x.l === l) || null });
   } else {
     const use = state.iso != null ? [sub[state.iso]] : sub;
     for (const s of use) {
@@ -1173,15 +1187,28 @@ function refresh(reframe) {
   $("f-unp").textContent = Math.round(2 * T.S);
 
   if (state.mode === "orb") {
-    $("hud-cfg").innerHTML = `orbital <b>${state.n}${LNAME[state.l]}</b> &nbsp; m = <b>${
-      state.m > 0 ? "+" + state.m : state.m}</b> &nbsp; ${2 * state.l + 1} degenerate states`;
+    const here = sub.find(x => x.n === state.n && x.l === state.l);
+    const cap = 2 * (2 * state.l + 1);
+    const Zo = zeff(el.Z, sub, state.n, state.l);
+    $("o-name").innerHTML = here
+      ? `${state.n}${LNAME[state.l]}<sup>${here.e}</sup>`
+      : `${state.n}${LNAME[state.l]}<sup>0</sup>`;
+    $("o-zeff").textContent = Zo.toFixed(2);
+    $("hud-cfg").innerHTML = `<b>${el.name}</b> ${state.n}${LNAME[state.l]} &nbsp; m = <b>${
+      state.m > 0 ? "+" + state.m : state.m}</b> &nbsp; Z<sub>eff</sub> ${Zo.toFixed(2)} &nbsp; ` +
+      (here ? `${here.e} of ${cap} electrons` : `empty in the ground state`);
     $("caption").textContent =
-      `${state.n}${LNAME[state.l]} orbital · m = ${state.m} · ${(used / 1000).toFixed(0)}k samples`
+      `${el.name} ${state.n}${LNAME[state.l]} · m = ${state.m} · ${(used / 1000).toFixed(0)}k samples`
       + " — each dot is one possible position, not an electron";
-    $("statehint").innerHTML = state.m === 0
-      ? "m = 0: the current vanishes identically, so this state is genuinely still."
-      : `Complex eigenstate: probability circulates about the vertical axis, ${
-          state.m > 0 ? "anticlockwise" : "clockwise"}, ${Math.abs(state.m)}&hbar; of angular momentum.`;
+    const flow = state.m === 0
+      ? "m = 0, so the current vanishes identically and this state is genuinely still."
+      : `Probability circulates about the vertical axis, ${
+          state.m > 0 ? "anticlockwise" : "clockwise"}, carrying ${Math.abs(state.m)}&hbar;.`;
+    $("statehint").innerHTML = (here
+      ? `<b>${el.name} really fills this orbital</b> (${here.e} of ${cap} electrons), and it is
+         drawn at the size its screened charge gives it, Z<sub>eff</sub> = ${Zo.toFixed(2)}.`
+      : `<b>Empty in ${el.name}'s ground state.</b> Z<sub>eff</sub> = ${Zo.toFixed(2)} is what an
+         electron promoted into this orbital would feel.`) + " " + flow;
   } else {
     $("hud-cfg").innerHTML = cfgString(state.iso != null ? [sub[state.iso]] : sub);
     $("caption").textContent = (state.iso != null
@@ -1220,6 +1247,7 @@ function setZ(z) {
   state.excited = null;
   if (inWave) { root.remove(inWave); inWave = null; }
   $("f-tr").textContent = "—"; $("f-lam").textContent = "—";
+  if (state.mode === "orb") syncRange();   /* n and l are bounded by the new element */
   [...ptable.children].forEach(b => {
     const on = +b.dataset.z === state.Z;
     b.classList.toggle("on", on);
@@ -1247,28 +1275,61 @@ segPick($("cloudmode"), "m", m => {
   state.mode = m;
   state.excited = null;
   state.iso = null;
+  if (m === "orb") syncRange(true);        /* open on the element's valence orbital */
   $("orbctl").classList.toggle("hide", m !== "orb");
   $("shellsblock").classList.toggle("hide", m === "orb");
   refresh(true);
 });
 segPick($("basis"), "b", b => { state.basis = b; refresh(false); });
 segPick($("fillmode"), "f", f => { state.fill = f; refresh(false); });
+segPick($("virt"), "v", v => { state.virt = v; syncRange(); refresh(true); });
 segPick($("framemode"), "r", r => {
   state.frame = r;
   if (r === "fit") refresh(true);
 });
 
-const syncQ = () => {
-  const n = +$("qn").value;
-  $("ql").max = n - 1;
-  if (+$("ql").value > n - 1) $("ql").value = n - 1;
-  const l = +$("ql").value;
-  $("qm").min = -l; $("qm").max = l;
-  if (Math.abs(+$("qm").value) > l) $("qm").value = 0;
-  state.n = n; state.l = l; state.m = +$("qm").value;
-  $("qn-v").textContent = n;
-  $("ql-v").textContent = `${l} ${LNAME[l]}`;
+/* Which orbitals an element actually has.
+
+   n is not a free dial. NIST: electrons sharing a principal quantum number
+   belong to that shell, and those sharing n and l to a subshell; which ones
+   hold electrons follows from the Aufbau/Madelung filling order. So the
+   available n run 1..nMax where nMax comes from the ground-state configuration
+   -- hydrogen stops at 1, iron reaches 4, uranium 7. nMax is the period number
+   for every element except palladium, which is [Kr]4d10 with an empty 5s and
+   so has only four occupied shells while sitting in period 5.
+
+   l is bounded twice over: by l <= n-1, and by what that shell actually fills.
+   Iron's n=4 shell holds only 4s, so l there is 0, not 3. */
+const shellMax = sub => Math.max(...sub.map(s => s.n));
+function lMaxAt(sub, n) {
+  const ls = sub.filter(s => s.n === n).map(s => s.l);
+  return ls.length ? Math.max(...ls) : -1;
+}
+function syncRange(toValence) {
+  const sub = configOf(state.Z), all = state.virt === "all";
+  const has = sub.some(s => s.n === state.n && s.l === state.l);
+  if (toValence || (!all && !has)) {
+    const v = sub.reduce((a, b) => (b.n > a.n || (b.n === a.n && b.l > a.l) ? b : a), sub[0]);
+    state.n = v.n; state.l = v.l; state.m = 0;
+  }
+  const nMax = all ? 8 : shellMax(sub);
+  state.n = Math.max(1, Math.min(nMax, state.n));
+  const lMax = all ? state.n - 1 : Math.max(0, lMaxAt(sub, state.n));
+  state.l = Math.max(0, Math.min(lMax, state.l));
+  state.m = Math.max(-state.l, Math.min(state.l, state.m));
+  const qn = $("qn"), ql = $("ql"), qm = $("qm");
+  qn.max = nMax; qn.value = state.n;
+  ql.max = lMax; ql.value = state.l;
+  qm.min = -state.l; qm.max = state.l; qm.value = state.m;
+  $("qn-v").textContent = `${state.n} of ${nMax}`;
+  $("ql-v").textContent = `${state.l} ${LNAME[state.l]}`;
   $("qm-v").textContent = state.m > 0 ? "+" + state.m : state.m;
+}
+const syncQ = () => {
+  state.n = +$("qn").value;
+  state.l = +$("ql").value;
+  state.m = +$("qm").value;
+  syncRange();
   queue(false);
 };
 ["qn", "ql", "qm"].forEach(id => $(id).addEventListener("input", syncQ));
@@ -1352,8 +1413,15 @@ const EXPLAIN = {
   "g-state": `Three numbers name every orbital. <b>n</b> is the shell: bigger n, bigger and further
     out. <b>l</b> is the shape &mdash; 0 is a sphere, 1 a dumbbell, 2 a cloverleaf, 3 stranger still.
     <b>m</b> is which way that shape points, and whether it circulates.
-    <b>Whole atom</b> stacks every orbital this element really occupies. <b>Single orbital</b> hands
-    you the three dials directly, ignoring the element.
+    <b>Whole atom</b> stacks every orbital this element really occupies. <b>Single orbital</b> shows
+    one of them at a time, and the dials only reach the orbitals that element actually has:
+    hydrogen stops at n = 1, iron reaches n = 4, uranium n = 7. That ceiling is the period number
+    for everything except palladium, which is [Kr]4d<sup>10</sup> with an empty 5s and so keeps
+    four shells while sitting in period 5. l is capped twice over, by l &le; n&minus;1 and by what
+    the shell actually fills &mdash; iron's n = 4 holds only 4s. <b>Include empty</b> lifts the
+    restriction so you can look at orbitals the atom could be promoted into.
+    Whichever you pick, it is drawn at the size that element's screened charge gives it, so a
+    3d orbital is a different size in iron than in zinc.
     <b>Hund's rules</b> decide which of those m states an unfilled subshell actually uses: one
     electron into each before any pairing. It matters more than it sounds &mdash; a subshell that
     is full or exactly half-full occupies every m equally and comes out a perfect sphere, which is
@@ -1479,6 +1547,7 @@ function tick(now) {
 resize();
 applyExposure();
 setZ(26);
+syncRange(true);
 requestAnimationFrame(tick);
 
 </script>
