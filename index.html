@@ -231,8 +231,8 @@ body.rail-closed #fstog{right:92px}
         <div class="row"><label for="qm">Magnetic <b>m</b></label><span class="val" id="qm-v">+1</span></div>
         <input type="range" id="qm" min="-7" max="7" step="1" value="1">
         <div class="seg" id="virt" style="margin-top:10px">
-          <button data-v="occ" class="on">Occupied only</button>
-          <button data-v="all">Include empty</button>
+          <button data-v="occ">Occupied only</button>
+          <button data-v="all" class="on">Include empty</button>
         </div>
         <div class="facts" style="margin-top:8px">
           <div class="fact"><div class="k">Subshell</div><div class="v" id="o-name">&mdash;</div></div>
@@ -868,7 +868,7 @@ function makeNucleus(Z, A, outer) {
 
 /* ============================ cloud build ============================ */
 const state = {
-  Z: 1, mode: "atom", basis: "cx", fill: "hund", frame: "fit", virt: "occ", n: 4, l: 3, m: 1,
+  Z: 1, mode: "atom", basis: "cx", fill: "hund", frame: "fit", virt: "all", n: 4, l: 3, m: 1,
   pts: 120000, size: 1.5, gain: 0, contrast: 55, flow: 1, boil: 1200,
   nuc: true, grid: true, pal: "auto", iso: null, excited: null
 };
