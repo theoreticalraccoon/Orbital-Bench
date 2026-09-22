@@ -1004,6 +1004,13 @@ function buildCloud() {
   geo.setAttribute("position", new THREE.BufferAttribute(new Float32Array(used * 3), 3));
   geo.setDrawRange(0, used);
   cursor = 0;
+  /* Dot size has to track outerR, not sit at a fixed world size. The camera
+     reframes to outerR*3.6 for every cloud, so a fixed-size dot swells to
+     dwarf a tight hydrogen 1s (outerR ~1.5 a0) while shrinking to a speck
+     against a sprawling uranium 7s (outerR ~25 a0). Scaling by outerR keeps
+     the screen-space dot size constant across elements and orbitals, so the
+     cloud's actual shape - not an oversized sprite - is what's visible. */
+  mat.uniforms.uSize.value = state.size * outerR / 40;
   makeNucleus(el.Z, el.mass, outerR);
   makeGrid(outerR * 2.2);
   return { el, sub, list, used };
@@ -1340,7 +1347,7 @@ const slider = (id, fn, fmt) => $(id).addEventListener("input", e => {
   fn(v);
 });
 slider("pts", v => { state.pts = v * 1000; queue(false); }, v => v + "k");
-slider("dsz", v => { state.size = v / 10; mat.uniforms.uSize.value = state.size; }, v => (v / 10).toFixed(1));
+slider("dsz", v => { state.size = v / 10; mat.uniforms.uSize.value = state.size * outerR / 40; }, v => (v / 10).toFixed(1));
 /* Brightness slides the log window, contrast narrows it. They are orthogonal:
    neither can wash the image out or black it out on its own. */
 function applyExposure() {
