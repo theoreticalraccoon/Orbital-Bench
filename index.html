@@ -1264,7 +1264,15 @@ function setZ(z) {
   state.excited = null;
   if (inWave) { root.remove(inWave); inWave = null; }
   $("f-tr").textContent = "—"; $("f-lam").textContent = "—";
-  if (state.mode === "orb") syncRange();   /* n and l are bounded by the new element */
+  /* Always land on the new element's valence orbital, independent of the
+     Occupied/Include-empty toggle. That toggle governs what happens once
+     you're looking at an element and dial n/l/m somewhere it has no
+     electrons - it was never meant to disable the jump-to-valence default,
+     but reusing syncRange's toValence-vs-!has branch for both jobs did
+     exactly that: with Include empty on, switching elements just kept
+     whatever orbital you'd left, so every element you clicked showed the
+     same leftover 1s instead of its own shape. */
+  if (state.mode === "orb") syncRange(true);
   [...ptable.children].forEach(b => {
     const on = +b.dataset.z === state.Z;
     b.classList.toggle("on", on);
