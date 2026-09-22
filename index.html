@@ -1011,6 +1011,16 @@ function buildCloud() {
      the screen-space dot size constant across elements and orbitals, so the
      cloud's actual shape - not an oversized sprite - is what's visible. */
   mat.uniforms.uSize.value = state.size * outerR / 40;
+  /* The near-clip plane was a fixed 0.02 a0, fine while every cloud was
+     several a0 across. A deeply screened core orbital in a superheavy
+     element (Nihonium 1s: Zeff ~113, outerR ~0.013 a0) puts the camera
+     at outerR*3.6 ~= 0.05 a0 - close enough that 0.02 eats most of the
+     depth range in front of it, so the near half of the cloud's own
+     points get clipped away and only a faint sliver survives. Scaling
+     the near plane down with outerR keeps it a small fraction of the
+     camera distance regardless of how tight the orbital is. */
+  camera.near = Math.max(1e-5, outerR * 0.01);
+  camera.updateProjectionMatrix();
   makeNucleus(el.Z, el.mass, outerR);
   makeGrid(outerR * 2.2);
   return { el, sub, list, used };
